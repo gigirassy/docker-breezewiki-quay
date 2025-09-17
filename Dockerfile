@@ -23,6 +23,9 @@ RUN git clone --depth=1 https://gitdab.com/cadence/breezewiki.git . \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
+RUN export PLT_GC_INITIAL_HEAP_MB=32
+RUN export PLT_GC_MAX_HEAP_MB=128
+
 # Install Racket dependencies without docs
 RUN raco pkg install --batch --auto --no-docs --skip-installed req-lib \
     && raco req -d \
