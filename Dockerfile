@@ -13,11 +13,17 @@ RUN git clone --depth=1 https://gitdab.com/cadence/breezewiki.git .
 RUN raco pkg install --batch --auto --no-docs --skip-installed req-lib && \
     raco req -d
 
-# Final stage
+FROM debian:stable-slim AS runtime
+
+# Copy the app
+COPY --from=builder /app /app
+
+# Runtime deps only
 RUN apt update \
  && apt install -y --no-install-recommends \
-    racket ca-certificates sqlite3 \
- && apt clean \
+    ca-certificates sqlite3 \
+    libfontconfig1 libcairo2 libpango-1.0-0 libfreetype6 libx11-6 libxrender1 libpng16-16 libjpeg62-turbo \
  && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app /app
+EXPOSE 10416
+CMD ["racket", "dist.rkt"]
