@@ -29,4 +29,4 @@ RUN apt update \
  && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 10416
-CMD ["racket", "./dist.rkt"]
+CMD ["racket", "/app/dist.rkt"]
