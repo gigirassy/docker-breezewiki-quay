@@ -1,18 +1,23 @@
 FROM debian:stable-slim
 
+# Set working directory
 WORKDIR /app
 
-# Install only required packages
+# Install build dependencies only temporarily
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       git \
-       racket \
-       ca-certificates \
        curl \
+       ca-certificates \
        sqlite3 \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+       git \
+       xz-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-# Clone repo with shallow history
+# Download and install Racket Minimal
+RUN curl -L https://download.racket-lang.org/installers/8.16/racket-minimal-8.16-x86_64-linux-cs.tgz \
+    | tar xz -C /usr --strip-components=1
+
+# Clone your app repository
 RUN git clone --depth=1 https://gitdab.com/cadence/breezewiki.git . \
     && apt-get purge -y git \
     && apt-get autoremove -y \
@@ -20,8 +25,11 @@ RUN git clone --depth=1 https://gitdab.com/cadence/breezewiki.git . \
 
 # Install Racket dependencies without docs
 RUN raco pkg install --batch --auto --no-docs --skip-installed req-lib \
-    && raco req -d
+    && raco req -d \
+    && rm -rf ~/.cache/racket ~/.local/share/racket/8.16/doc
 
+# Expose the port your app uses
 EXPOSE 10416
 
+# Run your app
 CMD ["racket", "dist.rkt"]
