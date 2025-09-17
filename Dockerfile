@@ -3,15 +3,10 @@ FROM debian:stable-slim AS builder
 
 WORKDIR /app
 
-RUN apt update && \
-    apt install -y --no-install-recommends \
-    git \
-    racket \
-    ca-certificates \
-    curl \
-    sqlite3 && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt update \
+ && apt install -y --no-install-recommends \
+    git racket ca-certificates curl sqlite3 \
+    libfontconfig1 libcairo2 libpango-1.0-0 libfreetype6 libx11-6 libxrender1 libpng16-16 libjpeg62-turbo
 
 RUN git clone --depth=1 https://gitdab.com/cadence/breezewiki.git .
 
