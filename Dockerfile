@@ -14,12 +14,10 @@ RUN raco pkg install --batch --auto --no-docs --skip-installed req-lib && \
     raco req -d
 
 # Final stage
-FROM debian:stable-slim
-
-WORKDIR /app
+RUN apt update \
+ && apt install -y --no-install-recommends \
+    racket ca-certificates sqlite3 \
+ && apt clean \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app /app
-
-EXPOSE 10416
-
-CMD ["racket", "dist.rkt"]
