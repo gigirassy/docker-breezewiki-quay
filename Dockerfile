@@ -17,6 +17,9 @@ FROM debian:stable-slim AS runtime
 
 # Copy the app
 COPY --from=builder /app /app
+COPY --from=builder /usr/bin/racket /usr/bin/
+COPY --from=builder /usr/bin/raco /usr/bin/
+COPY --from=builder /usr/lib/racket /usr/lib/racket
 
 # Runtime deps only
 RUN apt update \
