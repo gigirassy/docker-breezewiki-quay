@@ -1,7 +1,7 @@
 # Multi-arch multi-stage Dockerfile for Racket app (x86_64 & arm64)
 FROM debian:stable-slim AS builder
 
-ARG RACKET_VER=8.16
+ARG RACKET_VER=8.18
 ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /src
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Download & install Racket into /opt/racket
+# Download & install Racket into /opt/racket (robust, multiple filename attempts)
 RUN set -eux; \
     arch="${TARGETARCH:-$(uname -m)}"; \
     case "$arch" in \
@@ -20,15 +21,45 @@ RUN set -eux; \
       *) racket_arch="${arch}-linux-cs"; ;; \
     esac; \
     base="https://download.racket-lang.org/installers/${RACKET_VER}"; \
-    url="${base}/racket-minimal-${RACKET_VER}-${racket_arch}.tgz"; \
-    if ! curl -fSL "$url" -o /tmp/racket.tgz; then \
-      alt_arch="$(echo $racket_arch | sed 's/-cs//')"; \
-      alt_url="${base}/racket-minimal-${RACKET_VER}-${alt_arch}.tgz"; \
-      curl -fSL "$alt_url" -o /tmp/racket.tgz; \
+    # candidate filenames (order intentionally covers common variants)
+    candidates=( \
+      "racket-minimal-${RACKET_VER}-${racket_arch}.tgz" \
+      "racket-minimal-${RACKET_VER}-$(echo ${racket_arch} | sed 's/-cs//').tgz" \
+      "racket-minimal-${RACKET_VER}-$(echo ${racket_arch} | sed 's/-cs//g' | sed 's/aarch64/arm64/').tgz" \
+      "racket-minimal-${RACKET_VER}-x86_64-linux-cs.tgz" \
+      "racket-minimal-${RACKET_VER}-x86_64-linux-buster-cs.tgz" \
+      "racket-minimal-${RACKET_VER}-x86_64-linux.tgz" \
+      "racket-minimal-${RACKET_VER}-aarch64-linux-cs.tgz" \
+      "racket-minimal-${RACKET_VER}-aarch64-linux.tgz" \
+      "racket-minimal-${RACKET_VER}-aarch64-linux-cs.tgz" \
+      "racket-minimal-${RACKET_VER}-aarch64-linux-buster-cs.tgz" \
+      "racket-minimal-${RACKET_VER}-aarch64-linux.tgz" \
+    ); \
+    echo "Arch detected: $arch -> trying racket_arch: $racket_arch"; \
+    rm -f /tmp/racket.tgz || true; \
+    success=0; \
+    for f in "${candidates[@]}"; do \
+      url="${base}/${f}"; \
+      echo "Attempting: $url"; \
+      # curl: follow redirects, fail on HTTP >=400, retry transient errors
+      if curl --retry 3 --retry-delay 2 -fSL "$url" -o /tmp/racket.tgz; then \
+        echo "Downloaded $url"; success=1; break; \
+      else \
+        echo "Failed to download $url (status/connection) — checking headers:"; \
+        curl -I --max-time 10 "$url" || true; \
+      fi; \
+    done; \
+    if [ "$success" -ne 1 ]; then \
+      echo "ERROR: could not download any candidate Racket tarball. Tried:"; \
+      for f in "${candidates[@]}"; do echo "  - ${base}/${f}"; done; \
+      echo "If these URLs are missing, check the Racket download site for the exact filename for ${RACKET_VER} and ${arch}."; \
+      exit 22; \
     fi; \
     mkdir -p /opt/racket; \
     tar xzf /tmp/racket.tgz -C /opt/racket --strip-components=1; \
     rm -f /tmp/racket.tgz
+
+
 
 ENV PATH="/opt/racket/bin:${PATH}"
 ENV PLT_GC_INITIAL_HEAP_MB=32
