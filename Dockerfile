@@ -1,21 +1,17 @@
 # Multi-arch multi-stage Dockerfile for Racket app (x86_64 & arm64)
-# Final image is small (distroless/cc) and contains only runtime + app.
-
-# ---- Build stage ----
 FROM debian:stable-slim AS builder
 
 ARG RACKET_VER=8.16
 ARG TARGETARCH
-
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /src
 
-# Install minimal build/runtime helpers (kept only in builder)
+# Minimal tools for install/build
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates xz-utils git sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and install Racket into /opt/racket (keeps /usr clean)
+# Download & install Racket into /opt/racket
 RUN set -eux; \
     arch="${TARGETARCH:-$(uname -m)}"; \
     case "$arch" in \
@@ -25,51 +21,44 @@ RUN set -eux; \
     esac; \
     base="https://download.racket-lang.org/installers/${RACKET_VER}"; \
     url="${base}/racket-minimal-${RACKET_VER}-${racket_arch}.tgz"; \
-    echo "Downloading $url"; \
     if ! curl -fSL "$url" -o /tmp/racket.tgz; then \
-      # try a common fallback name (sometimes naming varies)
       alt_arch="$(echo $racket_arch | sed 's/-cs//')"; \
       alt_url="${base}/racket-minimal-${RACKET_VER}-${alt_arch}.tgz"; \
-      echo "Primary download failed, trying ${alt_url}"; \
       curl -fSL "$alt_url" -o /tmp/racket.tgz; \
     fi; \
     mkdir -p /opt/racket; \
     tar xzf /tmp/racket.tgz -C /opt/racket --strip-components=1; \
     rm -f /tmp/racket.tgz
 
-# Make Racket tools available in PATH for the build steps
 ENV PATH="/opt/racket/bin:${PATH}"
 ENV PLT_GC_INITIAL_HEAP_MB=32
 ENV PLT_GC_MAX_HEAP_MB=128
 
-# Clone app, install runtime deps (raco pkgs)
-# Adjust repo URL/path as needed; using user's URL from earlier conversation
+# Clone app, install required raco packages (install web-server explicitly)
 RUN git clone --depth=1 https://gitdab.com/cadence/breezewiki.git . \
-    && raco pkg install --batch --auto --no-docs --skip-installed req-lib \
+    && raco pkg install --batch --auto --no-docs --skip-installed web-server req-lib \
     && raco req -d \
     && rm -rf ~/.cache/racket ~/.local/share/racket/${RACKET_VER}/doc \
     && apt-get purge -y git \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-# ---- Runtime stage (small) ----
-# Use distroless cc (contains C runtime / glibc) — multi-arch variants available
+# ---- Runtime stage (small, distroless with glibc) ----
 FROM gcr.io/distroless/cc-debian11
 
-# Copy Racket runtime installed under /opt/racket from the builder
+# Copy Racket runtime and app from builder
 COPY --from=builder /opt/racket /opt/racket
-# Copy app
 COPY --from=builder /src /app
 
-# Ensure racket is on PATH
+# IMPORTANT: copy user-installed racket packages so collections are available at runtime
+# This is where raco put per-user packages in the builder; copying it makes collections such as "web-server" visible.
+COPY --from=builder /root/.local/share/racket /root/.local/share/racket
+
 ENV PATH="/opt/racket/bin:${PATH}"
 ENV PLT_GC_INITIAL_HEAP_MB=32
 ENV PLT_GC_MAX_HEAP_MB=128
 WORKDIR /app
 
-# Expose your app port (doc-only)
 EXPOSE 10416
-
-# Use absolute path for entrypoint (distroless has no shell)
 ENTRYPOINT ["/opt/racket/bin/racket"]
 CMD ["dist.rkt"]
