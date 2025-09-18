@@ -1,7 +1,7 @@
 # multi-arch aware Dockerfile (supports amd64 and arm64)
 FROM debian:stable-slim
 
-ARG RACKET_VER=8.16-minimal
+ARG RACKET_VER=8.16
 # Docker BuildKit will populate TARGETARCH (e.g. "amd64" or "arm64")
 ARG TARGETARCH
 
