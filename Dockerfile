@@ -12,53 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Download & install Racket into /opt/racket
-# Download & install Racket into /opt/racket (robust, multiple filename attempts)
 RUN set -eux; \
     arch="${TARGETARCH:-$(uname -m)}"; \
     case "$arch" in \
-      amd64|x86_64) racket_arch="x86_64-linux-cs"; ;; \
-      arm64|aarch64) racket_arch="aarch64-linux-cs"; ;; \
-      *) racket_arch="${arch}-linux-cs"; ;; \
+      amd64|x86_64) tb="x86_64-linux-buster-cs" ;; \
+      arm64|aarch64) tb="aarch64-linux-buster-cs" ;; \
+      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
-    base="https://download.racket-lang.org/installers/${RACKET_VER}"; \
-    # candidate filenames (order intentionally covers common variants)
-    candidates=( \
-      "racket-minimal-${RACKET_VER}-${racket_arch}.tgz" \
-      "racket-minimal-${RACKET_VER}-$(echo ${racket_arch} | sed 's/-cs//').tgz" \
-      "racket-minimal-${RACKET_VER}-$(echo ${racket_arch} | sed 's/-cs//g' | sed 's/aarch64/arm64/').tgz" \
-      "racket-minimal-${RACKET_VER}-x86_64-linux-cs.tgz" \
-      "racket-minimal-${RACKET_VER}-x86_64-linux-buster-cs.tgz" \
-      "racket-minimal-${RACKET_VER}-x86_64-linux.tgz" \
-      "racket-minimal-${RACKET_VER}-aarch64-linux-cs.tgz" \
-      "racket-minimal-${RACKET_VER}-aarch64-linux.tgz" \
-      "racket-minimal-${RACKET_VER}-aarch64-linux-cs.tgz" \
-      "racket-minimal-${RACKET_VER}-aarch64-linux-buster-cs.tgz" \
-      "racket-minimal-${RACKET_VER}-aarch64-linux.tgz" \
-    ); \
-    echo "Arch detected: $arch -> trying racket_arch: $racket_arch"; \
-    rm -f /tmp/racket.tgz || true; \
-    success=0; \
-    for f in "${candidates[@]}"; do \
-      url="${base}/${f}"; \
-      echo "Attempting: $url"; \
-      # curl: follow redirects, fail on HTTP >=400, retry transient errors
-      if curl --retry 3 --retry-delay 2 -fSL "$url" -o /tmp/racket.tgz; then \
-        echo "Downloaded $url"; success=1; break; \
-      else \
-        echo "Failed to download $url (status/connection) — checking headers:"; \
-        curl -I --max-time 10 "$url" || true; \
-      fi; \
-    done; \
-    if [ "$success" -ne 1 ]; then \
-      echo "ERROR: could not download any candidate Racket tarball. Tried:"; \
-      for f in "${candidates[@]}"; do echo "  - ${base}/${f}"; done; \
-      echo "If these URLs are missing, check the Racket download site for the exact filename for ${RACKET_VER} and ${arch}."; \
-      exit 22; \
-    fi; \
-    mkdir -p /opt/racket; \
-    tar xzf /tmp/racket.tgz -C /opt/racket --strip-components=1; \
-    rm -f /tmp/racket.tgz
-
+    url="https://download.racket-lang.org/releases/${RACKET_VER}/installers/racket-minimal-${RACKET_VER}-${tb}.tgz"; \
+    echo "Downloading $url"; \
+    curl -fSL "$url" -o /tmp/racket.tgz; \
+    mkdir -p /opt/racket; tar xzf /tmp/racket.tgz -C /opt/racket --strip-components=1; rm -f /tmp/racket.tgz
 
 
 ENV PATH="/opt/racket/bin:${PATH}"
