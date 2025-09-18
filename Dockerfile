@@ -1,7 +1,5 @@
-# Use an official multi-arch slim Racket image as the base.
-# ARG before FROM allows easy Racket version pinning at build time.
-ARG RACKET_VER=8.16
-FROM racket:${RACKET_VER}-slim
+
+FROM racket:8.17-bc
 
 # Set working directory
 WORKDIR /app
