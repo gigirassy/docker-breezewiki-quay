@@ -1,5 +1,5 @@
 
-FROM racket:8.17-bc
+FROM racket/racket:8.17-bc
 
 # Set working directory
 WORKDIR /app
